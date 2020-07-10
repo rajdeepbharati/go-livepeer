@@ -14,9 +14,9 @@ package eth
 //go:generate abigen --abi protocol/abi/Poll.abi --pkg contracts --type Poll --out contracts/poll.go
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math/big"
+	"sort"
 	"strings"
 	"time"
 
@@ -32,6 +32,7 @@ import (
 	"github.com/livepeer/go-livepeer/eth/contracts"
 	lpTypes "github.com/livepeer/go-livepeer/eth/types"
 	"github.com/livepeer/go-livepeer/pm"
+	"github.com/pkg/errors"
 )
 
 var (
@@ -738,7 +739,98 @@ func (c *client) Vote(pollAddr ethcommon.Address, choiceID *big.Int) (*types.Tra
 	return poll.Vote(opts, choiceID)
 }
 
+func (c *client) Reward() (*types.Transaction, error) {
+	addr := c.accountManager.Account().Address
+
+	t, err := c.GetTranscoder(addr)
+	if err != nil {
+		return nil, errors.Wrapf(err, "unable to get transcoder %v", addr.Hex())
+	}
+
+	mintable, err := c.CurrentMintableTokens()
+	if err != nil {
+		return nil, errors.Wrapf(err, "unable to get curernt mintable tokens")
+	}
+
+	totalBonded, err := c.GetTotalBonded()
+	if err != nil {
+		return nil, errors.Wrapf(err, "unable to get total bonded")
+	}
+
+	// reward = (current mintable tokens for the round * active transcoder stake) / total active stake
+	reward := new(big.Int).Div(new(big.Int).Mul(mintable, t.DelegatedStake), totalBonded)
+
+	transcoders, err := c.TranscoderPool()
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to get transcoder pool")
+	}
+
+	hints := c.getStakingHints(addr, ethcommon.Address{}, reward, transcoders)
+	return c.RewardWithHint(hints.newPosPrev, hints.newPosNext)
+
+}
+
 // Helpers
+
+// getStakingHints returns hints for both the new and old (if applicable) delegate
+// amount provided should be negative when unbonding.
+func (c *client) getStakingHints(newDel ethcommon.Address, oldDel ethcommon.Address, amount *big.Int, transcoders []*lpTypes.Transcoder) *struct {
+	oldPosNext ethcommon.Address
+	oldPosPrev ethcommon.Address
+	newPosNext ethcommon.Address
+	newPosPrev ethcommon.Address
+} {
+
+	for _, t := range transcoders {
+		if t.Address == newDel {
+			t.DelegatedStake = t.DelegatedStake.Add(t.DelegatedStake, amount)
+		}
+		if t.Address == oldDel && oldDel != newDel {
+			t.DelegatedStake = t.DelegatedStake.Sub(t.DelegatedStake, amount)
+		}
+	}
+
+	sort.SliceStable(transcoders, func(i, j int) bool {
+
+		return transcoders[i].DelegatedStake.Cmp(transcoders[j].DelegatedStake) > 0
+	})
+
+	hints := new(struct {
+		oldPosNext ethcommon.Address
+		oldPosPrev ethcommon.Address
+		newPosNext ethcommon.Address
+		newPosPrev ethcommon.Address
+	})
+	for i, t := range transcoders {
+		if t.Address == oldDel && oldDel != newDel {
+			if i == 0 && len(transcoders) > 1 {
+				// head
+				hints.oldPosNext = transcoders[i+1].Address
+			} else if i == len(transcoders)-1 && len(transcoders) > 1 {
+				// tail
+				hints.oldPosPrev = transcoders[i-1].Address
+			} else {
+				hints.oldPosNext = transcoders[i+1].Address
+				hints.oldPosPrev = transcoders[i-1].Address
+			}
+		}
+		if t.Address == newDel {
+			if i == 0 && len(transcoders) > 1 {
+				// head
+				hints.newPosNext = transcoders[i+1].Address
+			} else if i == len(transcoders)-1 && len(transcoders) > 1 {
+				// tail
+				hints.newPosPrev = transcoders[i-1].Address
+			} else {
+				hints.newPosNext = transcoders[i+1].Address
+				hints.newPosPrev = transcoders[i-1].Address
+			}
+		}
+
+	}
+
+	return hints
+}
 
 func (c *client) ContractAddresses() map[string]ethcommon.Address {
 	addrMap := make(map[string]ethcommon.Address)
