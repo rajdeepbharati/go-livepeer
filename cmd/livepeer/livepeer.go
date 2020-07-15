@@ -143,6 +143,7 @@ func main() {
 	s3creds := flag.String("s3creds", "", "S3 credentials (in form ACCESSKEYID/ACCESSKEY)")
 	gsBucket := flag.String("gsbucket", "", "Google storage bucket")
 	gsKey := flag.String("gskey", "", "Google Storage private key file name (in json format)")
+	record := flag.Bool("record", false, "Use object store in record mode")
 
 	// API
 	authWebhookURL := flag.String("authWebhookUrl", "", "RTMP authentication webhook URL")
@@ -697,15 +698,25 @@ func main() {
 	if *s3bucket != "" && *s3creds != "" {
 		br := strings.Split(*s3bucket, "/")
 		cr := strings.Split(*s3creds, "/")
-		drivers.NodeStorage = drivers.NewS3Driver(br[0], br[1], cr[0], cr[1])
+		if *record {
+			drivers.RecordStorage = drivers.NewS3Driver(br[0], br[1], cr[0], cr[1])
+		} else {
+			drivers.NodeStorage = drivers.NewS3Driver(br[0], br[1], cr[0], cr[1])
+		}
 	}
 
 	if *gsBucket != "" && *gsKey != "" {
 		drivers.GSBUCKET = *gsBucket
-		drivers.NodeStorage, err = drivers.NewGoogleDriver(*gsBucket, *gsKey)
+
+		store, err := drivers.NewGoogleDriver(*gsBucket, *gsKey)
 		if err != nil {
 			glog.Error("Error creating Google Storage driver:", err)
 			return
+		}
+		if *record {
+			drivers.RecordStorage = store
+		} else {
+			drivers.NodeStorage = store
 		}
 	}
 
