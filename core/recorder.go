@@ -47,6 +47,7 @@ func (r *Recorder) Complete() error {
 	}()
 	for _, v := range renditions {
 		fname := filepath.Join(r.node.MediaDir, string(r.params.ManifestID), v.Name+".ffconcat")
+		fmt.Println("recorderfname", fname, "haha", r.node.MediaDir, string(r.params.ManifestID), v.Name+".ffconcat")
 		f, err := os.Create(fname)
 		if err != nil {
 			return err
@@ -60,6 +61,7 @@ func (r *Recorder) Complete() error {
 		segName := strconv.Itoa(int(seg))
 		for i, v := range renditions {
 			fname := filepath.Join(v.Name, segName+ffmpeg.FormatExtensions[v.Format])
+			fmt.Println("recordersegs", fname)
 			fmt.Fprintln(concatFiles[i], "file ", fname)
 		}
 	}

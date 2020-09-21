@@ -49,16 +49,29 @@ func (s *LivepeerServer) Pull(fname string, streamName core.ManifestID) error {
 	}
 
 	base := []string{s.LivepeerNode.WorkDir, "media", string(cxn.params.ManifestID)}
+	// base := []string{"/Users/rajdeep/livepeerOut", "mynew", string(cxn.params.ManifestID)}
 	baseDir := filepath.Join(base...)
+	// fmt.Println("filepath", filepath)
+	fmt.Println("baseDir", baseDir)
+	fmt.Println("base", base)
 	err = os.MkdirAll(baseDir, 0744)
 	if err != nil {
 		return fmt.Errorf("creating pull directory err=%w", err)
 	}
 	defer os.RemoveAll(baseDir) // TODO integrate with proper filesystem OS
 
+	// err = os.MkdirAll("/Users/rajdeep/livepeerOut/mynew", 0744)
+	// if err != nil {
+	// 	return fmt.Errorf("creating pull2 directory err=%w", err)
+	// }
+
+	// Dir(baseDir, "/Users/rajdeep/livepeerOut/mynew")
+	// defer os.RemoveAll(baseDir) // TODO integrate with proper filesystem OS
+	// defer Dir(baseDir, "/Users/rajdeep/livepeerOut/mynew")
 	if err := runSegmenter(s.LivepeerNode, cxn, fname); err != nil {
 		return err
 	}
+	// defer Dir(baseDir, "/Users/rajdeep/livepeerOut/mynew")
 	if err := removeRTMPStream(s, cxn.mid); err != nil {
 		return err
 	}
@@ -78,6 +91,9 @@ func process(cxn *rtmpConnection, segInfo string) error {
 	}
 	segPath := parts[0]
 	fname := filepath.Base(segPath)
+	fmt.Println("segpath", segPath)
+	fmt.Println("processfname", fname)
+	fmt.Println("processparts", parts)
 	seq, err := strconv.Atoi(strings.TrimSuffix(fname, filepath.Ext(fname)))
 	if err != nil {
 		return fmt.Errorf("invalid segment seq: %w", err)
@@ -106,6 +122,7 @@ func process(cxn *rtmpConnection, segInfo string) error {
 
 func runSegmenter(node *core.LivepeerNode, cxn *rtmpConnection, fname string) error {
 
+	fmt.Println("runseg", fname)
 	rd, wr, err := os.Pipe()
 	if err != nil {
 		return fmt.Errorf("create pipe err=%w", err)
@@ -163,6 +180,9 @@ func runSegmenter(node *core.LivepeerNode, cxn *rtmpConnection, fname string) er
 	}
 
 	base := []string{node.WorkDir, "media", string(cxn.params.ManifestID)}
+	// base := []string{"/Users/rajdeep/livepeerOut", "mynew", string(cxn.params.ManifestID)}
+	fmt.Println("runseg", "nodewd", node.WorkDir)
+	fmt.Println("runseg", base)
 	// baseDir := filepath.Join(base...)
 	// err = os.MkdirAll(baseDir, 0744)
 	// if err != nil {
