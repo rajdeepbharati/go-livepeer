@@ -67,7 +67,7 @@ func (sess *filesystemSession) EndSession() {
 	// this makes me nervous ...............
 	// if session is empty, could be removing private keys ...........
 	// TODO fix fix fix
-	os.RemoveAll(filepath.Join(sess.workDir, sess.sessName))
+	// os.RemoveAll(filepath.Join(sess.workDir, sess.sessName))
 }
 
 func (sess *filesystemSession) GetInfo() *net.OSInfo {
